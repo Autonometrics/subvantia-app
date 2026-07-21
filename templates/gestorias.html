@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Gestorías — Subvantia{% endblock %}
+{% block content %}
+<h1 class="page-title">Gestorías con acceso a Subvantia</h1>
+<p class="page-sub">Cada gestoría ve la base de convocatorias compartida y gestiona su propia cartera de clientes, aislada del resto. Marca una gestoría como "impago" o "pausada" para bloquearle el acceso sin perder sus datos: al volver a marcarla "activa" recupera todo tal cual estaba.</p>
+
+<div class="filters">
+  <a class="btn btn-primary" href="{{ url_for('nueva_gestoria') }}" style="margin-left:auto;">+ Dar de alta una gestoría</a>
+</div>
+
+<div class="card">
+  <table>
+    <tr>
+      <th>Gestoría</th><th>Contacto</th><th>Email de acceso</th><th>Clientes</th><th>Matches</th><th>Alta</th><th>Suscripción</th>
+    </tr>
+    {% for u in gestorias %}
+    <tr>
+      <td>{{ u.gestoria }}</td>
+      <td>{{ u.nombre or "—" }}</td>
+      <td>{{ u.email }}</td>
+      <td>{{ u.n_clientes }}</td>
+      <td>{{ u.n_matches }}</td>
+      <td>{{ u.creado_en[:10] if u.creado_en else "—" }}</td>
+      <td>
+        <span class="badge badge-{{ u.estado_suscripcion or 'activa' }}">{{ u.estado_suscripcion or 'activa' }}</span>
+        <form method="post" action="{{ url_for('cambiar_estado_gestoria', usuario_id=u.id) }}" style="display:inline; margin-left:6px;">
+          <select name="estado_suscripcion" onchange="this.form.submit()" style="font-size:11.5px; padding:2px;">
+            <option value="activa" {{ "selected" if (u.estado_suscripcion or 'activa') == 'activa' }}>Activa</option>
+            <option value="impago" {{ "selected" if u.estado_suscripcion == 'impago' }}>Impago</option>
+            <option value="pausada" {{ "selected" if u.estado_suscripcion == 'pausada' }}>Pausada</option>
+          </select>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7">Todavía no has dado de alta ninguna gestoría cliente.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

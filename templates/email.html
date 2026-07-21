@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Email generado — Subvantia{% endblock %}
+{% block content %}
+<h1 class="page-title">Email personalizado</h1>
+<p class="page-sub">Generado automáticamente a partir del match. Cópialo y envíalo, o edítalo antes.</p>
+<div class="card">
+  <div class="email-box">{{ texto }}</div>
+</div>
+<a class="btn btn-outline" href="{{ url_for('matches') }}">← Volver al cruce</a>
+{% endblock %}

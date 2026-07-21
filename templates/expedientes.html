@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Expedientes — Subvantia{% endblock %}
+{% block content %}
+<h1 class="page-title">Expedientes (kanban)</h1>
+<p class="page-sub">Arrastra el seguimiento de cada expediente cambiando su estado.</p>
+
+<div class="kanban">
+  {% for estado in estados %}
+  <div class="kanban-col">
+    <h3>{{ labels[estado] }} ({{ columnas.get(estado, [])|length }})</h3>
+    {% for e in columnas.get(estado, []) %}
+    <div class="kanban-card">
+      <div class="cli">{{ e.cliente_nombre }}</div>
+      <div class="conv">{{ e.convocatoria_titulo }}</div>
+      <div style="margin-bottom:8px; color:var(--muted);">{{ "{:,.0f}".format(e.cuantia_estimada).replace(",", ".") if e.cuantia_estimada else "—" }} €</div>
+      <form method="post" action="{{ url_for('avanzar_expediente', expediente_id=e.id) }}">
+        <select name="estado" onchange="this.form.submit()">
+          {% for est in estados %}
+          <option value="{{ est }}" {{ "selected" if est == e.estado }}>{{ labels[est] }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+{% if columnas.values() | map('length') | sum == 0 %}
+<div class="empty-state">Todavía no hay expedientes. Créalos desde la pantalla de <a href="{{ url_for('matches') }}" style="color:var(--navy); font-weight:600;">Cruce</a>.</div>
+{% endif %}
+{% endblock %}

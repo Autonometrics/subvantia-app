@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Cruce — Subvantia{% endblock %}
+{% block content %}
+<h1 class="page-title">Resultados del cruce</h1>
+<p class="page-sub">{{ matches|length }} resultados. Crea un expediente para hacer seguimiento en el kanban.</p>
+
+<div class="filters">
+  <form method="get" style="display:flex; gap:10px;">
+    <select name="banda" onchange="this.form.submit()">
+      <option value="" {{ "selected" if not banda }}>Todas las bandas</option>
+      <option value="alta" {{ "selected" if banda == "alta" }}>Alta</option>
+      <option value="media" {{ "selected" if banda == "media" }}>Media</option>
+      <option value="baja" {{ "selected" if banda == "baja" }}>Baja</option>
+    </select>
+    <input type="text" name="q" placeholder="Buscar cliente..." value="{{ q }}">
+    <button class="btn btn-outline btn-sm" type="submit">Filtrar</button>
+  </form>
+  <a class="btn btn-primary" href="{{ url_for('exportar_matches') }}" style="margin-left:auto;">Exportar a Excel</a>
+</div>
+
+<div class="card">
+  {% if matches %}
+  <table>
+    <tr><th>Cliente</th><th>Convocatoria</th><th>Puntos</th><th>Banda</th><th>Motivo</th><th>Cuantía</th><th></th></tr>
+    {% for m in matches %}
+    <tr>
+      <td>{{ m.cliente_nombre }}</td>
+      <td style="max-width:280px;">{{ m.convocatoria_titulo }} <span style="color:var(--muted); font-size:11px;">({{ m.id_convocatoria }})</span></td>
+      <td>{{ m.puntuacion }}</td>
+      <td><span class="badge badge-{{ m.banda }}">{{ m.banda }}</span></td>
+      <td style="max-width:260px; font-size:12px; color:var(--muted);">{{ m.motivo }}</td>
+      <td>{{ "{:,.0f}".format(m.cuantia_estimada).replace(",", ".") if m.cuantia_estimada else "—" }} €</td>
+      <td style="white-space:nowrap;">
+        <a class="btn btn-outline btn-sm" href="{{ url_for('ver_email', match_id=m.id) }}">Email</a>
+        {% if m.id in expedientes_por_match %}
+          <span class="badge badge-abierta">En kanban</span>
+        {% else %}
+          <form class="inline" method="post" action="{{ url_for('crear_expediente', match_id=m.id) }}">
+            <button class="btn btn-primary btn-sm" type="submit">Crear expediente</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty-state">No hay matches todavía. <a href="{{ url_for('clientes') }}" style="color:var(--navy); font-weight:600;">Importa clientes primero →</a></div>
+  {% endif %}
+</div>
+{% endblock %}

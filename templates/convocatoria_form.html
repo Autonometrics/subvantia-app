@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ "Editar" if c else "Añadir" }} convocatoria — Subvantia{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ "Editar convocatoria" if c else "Añadir convocatoria nueva" }}</h1>
+<p class="page-sub">Al guardar, el cruce se recalcula automáticamente para toda la cartera de clientes.</p>
+
+<div class="card">
+  <form method="post">
+    <label>ID de la convocatoria (único, ej. CONV-021)</label><br>
+    <input type="text" name="id_convocatoria" value="{{ c.id_convocatoria if c else '' }}" {{ "readonly" if c }} required style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Título</label><br>
+    <input type="text" name="titulo" value="{{ c.titulo if c else '' }}" required style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Origen (ej. autonomico, BOE / estatal)</label><br>
+    <input type="text" name="origen" value="{{ c.origen if c else '' }}" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Comunidad autónoma (o "todas")</label><br>
+    <input type="text" name="comunidad_autonoma" value="{{ c.comunidad_autonoma if c else '' }}" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>CNAE elegibles ("todos", "todos excepto XX, YY", o descripción del sector)</label><br>
+    <input type="text" name="cnae_elegibles" value="{{ c.cnae_elegibles if c else 'todos' }}" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Forma jurídica elegible (vacío = todas; o ej. "SL, SA")</label><br>
+    <input type="text" name="forma_juridica_elegible" value="{{ c.forma_juridica_elegible if c else '' }}" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Antigüedad mínima (meses, opcional)</label><br>
+    <input type="number" name="antiguedad_min_meses" value="{{ c.antiguedad_min_meses if c and c.antiguedad_min_meses is not none else '' }}" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Antigüedad máxima (meses, opcional)</label><br>
+    <input type="number" name="antiguedad_max_meses" value="{{ c.antiguedad_max_meses if c and c.antiguedad_max_meses is not none else '' }}" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Cuantía mínima (EUR, opcional)</label><br>
+    <input type="number" step="0.01" name="cuantia_min_eur" value="{{ c.cuantia_min_eur if c and c.cuantia_min_eur is not none else '' }}" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Cuantía máxima (EUR)</label><br>
+    <input type="number" step="0.01" name="cuantia_max_eur" value="{{ c.cuantia_max_eur if c and c.cuantia_max_eur is not none else '' }}" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Fecha de apertura (AAAA-MM-DD, opcional)</label><br>
+    <input type="date" name="fecha_apertura" value="{{ c.fecha_apertura if c else '' }}" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Fecha de cierre (AAAA-MM-DD, vacío = sin fecha fija)</label><br>
+    <input type="date" name="fecha_cierre" value="{{ c.fecha_cierre if c else '' }}" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Requisitos / notas</label><br>
+    <textarea name="requisitos_texto" rows="4" style="width:100%; padding:8px; margin-bottom:14px;">{{ c.requisitos_texto if c else '' }}</textarea><br>
+
+    <label>URL de la fuente oficial (aquí es donde llevará el enlace al hacer clic en el título)</label><br>
+    <input type="url" name="url_fuente" value="{{ c.url_fuente if c else '' }}" placeholder="https://..." style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Estado</label><br>
+    <select name="estado_convocatoria" style="width:100%; padding:8px; margin-bottom:14px;">
+      {% for est in ["abierta", "verificar_urgente", "prevista", "no_confirmada", "cerrada"] %}
+      <option value="{{ est }}" {{ "selected" if c and c.estado_convocatoria == est }}>{{ est }}</option>
+      {% endfor %}
+    </select><br>
+
+    <label>Verificación manual (nota libre)</label><br>
+    <textarea name="verificado_manualmente" rows="2" style="width:100%; padding:8px; margin-bottom:14px;">{{ c.verificado_manualmente if c else '' }}</textarea><br>
+
+    <button class="btn btn-primary" type="submit">Guardar y recalcular cruce</button>
+    <a class="btn btn-outline" href="{{ url_for('convocatorias') }}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Dar de alta una gestoría — Subvantia{% endblock %}
+{% block content %}
+<h1 class="page-title">Dar de alta una gestoría</h1>
+<p class="page-sub">Crea el acceso para un nuevo cliente. Su cartera de clientes y sus matches quedan aislados del resto de gestorías.</p>
+
+<div class="card">
+  <form method="post">
+    <label>Nombre de la gestoría / despacho</label><br>
+    <input type="text" name="gestoria" required style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Persona de contacto</label><br>
+    <input type="text" name="nombre" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Email de acceso</label><br>
+    <input type="email" name="email" required style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Contraseña (déjalo en blanco para generar una automáticamente)</label><br>
+    <input type="text" name="password" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <button class="btn btn-primary" type="submit">Crear cuenta</button>
+    <a class="btn btn-outline" href="{{ url_for('gestorias') }}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

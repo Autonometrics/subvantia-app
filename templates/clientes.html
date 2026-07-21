@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Clientes — Subvantia{% endblock %}
+{% block content %}
+<h1 class="page-title">Cartera de clientes</h1>
+<p class="page-sub">Importa tu Excel de clientes. El cruce contra todas las convocatorias se calcula automáticamente al importar.</p>
+
+<div class="upload-box">
+  <form method="post" action="{{ url_for('importar_clientes') }}" enctype="multipart/form-data">
+    <p style="margin:0 0 12px; color:var(--navy); font-weight:600;">Importar cartera (.xlsx)</p>
+    <input type="file" name="archivo" accept=".xlsx" required>
+    <br><br>
+    <button class="btn btn-primary" type="submit">Importar y cruzar automáticamente</button>
+    <a class="btn btn-outline" href="{{ url_for('descargar_plantilla') }}" style="margin-left:10px;">Descargar plantilla</a>
+  </form>
+</div>
+
+<div class="card">
+  <h2>{{ clientes|length }} clientes</h2>
+  {% if clientes %}
+  <table>
+    <tr><th>Nombre</th><th>CIF/NIF</th><th>CNAE</th><th>CCAA</th><th>Forma jurídica</th><th>Alta</th><th>Gestor</th></tr>
+    {% for c in clientes %}
+    <tr>
+      <td>{{ c.nombre }}</td>
+      <td>{{ c.cif_nif or "—" }}</td>
+      <td>{{ c.cnae }}</td>
+      <td>{{ c.comunidad_autonoma }}</td>
+      <td>{{ c.forma_juridica }}</td>
+      <td>{{ c.fecha_alta }}</td>
+      <td>{{ c.gestor_asignado or "—" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty-state">Todavía no has importado ningún cliente.</div>
+  {% endif %}
+</div>
+{% endblock %}
