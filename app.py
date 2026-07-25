@@ -144,9 +144,15 @@ def cambiar_password():
 # ---------------------------------------------------------------- dashboard
 
 @app.route("/")
-@login_requerido
 def home():
-    return redirect(url_for("dashboard"))
+    # Si ya hay sesion, directo al dashboard como siempre. Si no, en vez de
+    # forzar el formulario de login a pelo, se muestra una pagina publica
+    # breve (quien es Subvantia, que hace) — asi la URL real del producto
+    # tiene una cara presentable para cualquiera que la reciba antes de tener
+    # cuenta, en vez de un formulario de login sin contexto.
+    if session.get("usuario_id"):
+        return redirect(url_for("dashboard"))
+    return render_template("home.html")
 
 
 @app.route("/dashboard")
