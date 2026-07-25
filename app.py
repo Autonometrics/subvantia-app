@@ -89,14 +89,19 @@ def login():
                     "pausada": "Esta cuenta está pausada. Contacta con Subvantia para reactivarla.",
                 }
                 flash(mensajes_estado.get(estado, "Esta cuenta no está activa. Contacta con Subvantia."))
-                return render_template("login.html")
+                return render_template("login.html", mostrar_pistas_demo=not db.USANDO_POSTGRES)
             session["usuario_id"] = usuario["id"]
             session["usuario_nombre"] = usuario["nombre"]
             session["usuario_gestoria"] = usuario["gestoria"]
             session["usuario_rol"] = rol
             return redirect(url_for("dashboard"))
         flash("Email o contraseña incorrectos.")
-    return render_template("login.html")
+    # Las credenciales de demo/admin en pantalla son solo una ayuda para
+    # desarrollo local (sqlite, sin DATABASE_URL). En cuanto la app corre con
+    # una base de datos real (Postgres/Neon, es decir un despliegue de
+    # verdad), se ocultan automaticamente para que ninguna visita publica a la
+    # web pueda leer la contraseña de administrador.
+    return render_template("login.html", mostrar_pistas_demo=not db.USANDO_POSTGRES)
 
 
 @app.route("/logout")
