@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Iniciar sesión — Subvantia</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-box">
+    <h1>SUBVANTIA</h1>
+    <p>El sistema operativo de subvenciones para gestorías pequeñas y medianas</p>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for m in messages %}
+          <div class="alert-flash">{{ m }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    <form method="post">
+      <label>Email</label>
+      <input type="email" name="email" required autofocus>
+      <label>Contraseña</label>
+      <input type="password" name="password" required>
+      <button class="btn btn-primary" type="submit">Entrar</button>
+    </form>
+    {% if mostrar_pistas_demo %}
+    <div class="login-hint">
+      Solo visible en desarrollo local (sin base de datos de producción conectada):<br><br>
+      Cuenta de <strong>gestoría</strong> (lo que ve un cliente): <strong>demo@subvantia.test</strong> / <strong>subvantia2026</strong><br><br>
+      Cuenta de <strong>administrador</strong> (mantenimiento de convocatorias): <strong>admin@subvantia.test</strong> / <strong>subvantia2026admin</strong>
+    </div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>
