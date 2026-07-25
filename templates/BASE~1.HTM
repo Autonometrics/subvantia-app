@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <title>{% block title %}Subvantia{% endblock %}</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 {% if session.get('usuario_id') %}
 <div class="topbar">
-  <div class="brand">SUBVANTIA</div>
+  <div class="brand"><img src="{{ url_for('static', filename='logo.svg') }}" class="brand-icon" alt=""> SUBVANTIA</div>
   <nav>
     <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' }}">Dashboard</a>
     <a href="{{ url_for('clientes') }}" class="{{ 'active' if request.endpoint == 'clientes' }}">Clientes</a>
