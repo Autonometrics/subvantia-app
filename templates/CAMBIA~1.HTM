@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Cambiar contraseña — Subvantia{% endblock %}
+{% block content %}
+<h1 class="page-title">Cambiar contraseña</h1>
+<p class="page-sub">Si accediste con una contraseña generada automáticamente, aprovecha para poner una tuya.</p>
+
+<div class="card" style="max-width:420px;">
+  <form method="post">
+    <label>Contraseña actual</label><br>
+    <input type="password" name="actual" required style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Nueva contraseña (mínimo 6 caracteres)</label><br>
+    <input type="password" name="nueva" required minlength="6" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <label>Confirmar nueva contraseña</label><br>
+    <input type="password" name="confirmar" required minlength="6" style="width:100%; padding:8px; margin-bottom:14px;"><br>
+
+    <button class="btn btn-primary" type="submit">Guardar</button>
+  </form>
+</div>
+{% endblock %}
