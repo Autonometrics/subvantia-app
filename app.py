@@ -105,6 +105,37 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/cambiar-password", methods=["GET", "POST"])
+@login_requerido
+def cambiar_password():
+    if request.method == "POST":
+        actual = request.form.get("actual", "")
+        nueva = request.form.get("nueva", "")
+        confirmar = request.form.get("confirmar", "")
+
+        conn = get_conn()
+        usuario = conn.execute(
+            "SELECT * FROM usuarios WHERE id = ?", (session["usuario_id"],)
+        ).fetchone()
+
+        if not check_password_hash(usuario["password_hash"], actual):
+            flash("La contraseña actual no es correcta.")
+        elif len(nueva) < 6:
+            flash("La nueva contraseña debe tener al menos 6 caracteres.")
+        elif nueva != confirmar:
+            flash("La nueva contraseña y su confirmación no coinciden.")
+        else:
+            conn.execute(
+                "UPDATE usuarios SET password_hash = ? WHERE id = ?",
+                (generate_password_hash(nueva), session["usuario_id"]),
+            )
+            conn.commit()
+            flash("Contraseña actualizada correctamente.")
+            return redirect(url_for("dashboard"))
+
+    return render_template("cambiar_password.html")
+
+
 # ---------------------------------------------------------------- dashboard
 
 @app.route("/")
