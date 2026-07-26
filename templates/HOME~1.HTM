@@ -2,9 +2,8 @@
 {% block title %}Subvantia — El sistema operativo de subvenciones para gestorías{% endblock %}
 {% block content %}
 <div class="hero">
-  <img src="{{ url_for('static', filename='logo.svg') }}" class="hero-logo" alt="Subvantia">
-  <h1 class="hero-title">SUBVANTIA</h1>
-  <p class="hero-tagline">El sistema operativo de subvenciones para gestorías pequeñas y medianas</p>
+  <img src="{{ url_for('static', filename='logo_full.png') }}" class="hero-logo-full" alt="Subvantia — Conecta clientes con oportunidades">
+  <p class="hero-desc" style="font-weight:600; color:var(--navy); font-size:16px;">El sistema operativo de subvenciones para gestorías pequeñas y medianas</p>
   <p class="hero-desc">Cruzamos automáticamente la cartera de clientes de tu gestoría con la base de convocatorias públicas vigentes — verificada y mantenida al día por nosotros — para que sepas, sin buscar nada, a qué ayudas puede optar cada cliente.</p>
   <a class="btn btn-primary" href="{{ url_for('login') }}" style="padding:13px 28px; font-size:15px;">Acceder a la plataforma</a>
 </div>
