@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Accesos — Subvantia{% endblock %}
+{% block content %}
+<h1 class="page-title">Accesos a la plataforma</h1>
+<p class="page-sub">Cada inicio de sesión (incluida la cuenta demo pública) queda registrado aquí, con fecha, hora e IP de origen. La cuenta demo es compartida por todos los que reciban el enlace, así que un mismo inicio de sesión no distingue a personas distintas con la misma IP.</p>
+
+<div class="kpi-grid">
+  <div class="kpi-card"><div class="num">{{ resumen_demo.hoy }}</div><div class="label">Accesos a la demo hoy</div></div>
+  <div class="kpi-card"><div class="num">{{ resumen_demo.ultimos_7_dias }}</div><div class="label">Últimos 7 días</div></div>
+  <div class="kpi-card"><div class="num">{{ resumen_demo.ultimos_30_dias }}</div><div class="label">Últimos 30 días</div></div>
+  <div class="kpi-card"><div class="num">{{ resumen_demo.total }}</div><div class="label">Total histórico (demo)</div></div>
+</div>
+
+<div class="card">
+  <table>
+    <tr>
+      <th>Fecha y hora</th><th>Cuenta</th><th>Gestoría</th><th>IP</th>
+    </tr>
+    {% for a in ultimos_accesos %}
+    <tr{% if a.email == email_demo %} style="background: var(--mint-bg);"{% endif %}>
+      <td>{{ a.fecha_hora[:16].replace("T", " ") if a.fecha_hora else "—" }}</td>
+      <td>{{ a.email }}{% if a.email == email_demo %} <span class="badge badge-activa">demo</span>{% endif %}</td>
+      <td>{{ a.gestoria or "—" }}</td>
+      <td>{{ a.ip or "—" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">Todavía no hay ningún acceso registrado.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}
