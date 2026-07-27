@@ -110,6 +110,14 @@ CREATE TABLE IF NOT EXISTS expedientes (
     notas TEXT,
     FOREIGN KEY (match_id) REFERENCES matches(id)
 );
+
+CREATE TABLE IF NOT EXISTS accesos_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id INTEGER NOT NULL,
+    fecha_hora TEXT,
+    ip TEXT,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+);
 """
 
 # Identica a la de arriba salvo id INTEGER PRIMARY KEY AUTOINCREMENT -> SERIAL
@@ -184,6 +192,14 @@ CREATE TABLE IF NOT EXISTS expedientes (
     actualizado_en TEXT,
     notas TEXT,
     FOREIGN KEY (match_id) REFERENCES matches(id)
+);
+
+CREATE TABLE IF NOT EXISTS accesos_log (
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER NOT NULL,
+    fecha_hora TEXT,
+    ip TEXT,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 );
 """
 

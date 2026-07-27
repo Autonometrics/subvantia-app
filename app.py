@@ -114,6 +114,13 @@ def login():
             session["usuario_gestoria"] = usuario["gestoria"]
             session["usuario_rol"] = rol
             session["usuario_email"] = usuario["email"]
+            ip_origen = request.headers.get("X-Forwarded-For", request.remote_addr or "")
+            ip_origen = ip_origen.split(",")[0].strip()
+            conn.execute(
+                "INSERT INTO accesos_log (usuario_id, fecha_hora, ip) VALUES (?, ?, ?)",
+                (usuario["id"], dt.datetime.now().isoformat(), ip_origen),
+            )
+            conn.commit()
             return redirect(url_for("dashboard"))
         flash("Email o contraseña incorrectos.")
     # Las credenciales de demo/admin en pantalla son solo una ayuda para
@@ -531,6 +538,51 @@ def cambiar_estado_gestoria(usuario_id):
     # estaba. Solo afecta a si puede iniciar sesion.
     flash(f"{gestoria['gestoria']} marcada como {ESTADOS_SUSCRIPCION_LABEL[nuevo_estado].lower()}.")
     return redirect(url_for("gestorias"))
+
+
+# -------------------------------------------------------------------- accesos
+
+@app.route("/accesos")
+@admin_requerido
+def accesos():
+    conn = get_conn()
+
+    demo = conn.execute("SELECT id FROM usuarios WHERE email = ?", (EMAIL_CUENTA_DEMO,)).fetchone()
+    demo_id = demo["id"] if demo else None
+
+    resumen_demo = {"hoy": 0, "ultimos_7_dias": 0, "ultimos_30_dias": 0, "total": 0}
+    if demo_id:
+        ahora = dt.datetime.now()
+        filas_demo = conn.execute(
+            "SELECT fecha_hora FROM accesos_log WHERE usuario_id = ?", (demo_id,)
+        ).fetchall()
+        for f in filas_demo:
+            try:
+                fh = dt.datetime.fromisoformat(f["fecha_hora"])
+            except (ValueError, TypeError):
+                continue
+            dias = (ahora - fh).days
+            resumen_demo["total"] += 1
+            if dias < 1:
+                resumen_demo["hoy"] += 1
+            if dias < 7:
+                resumen_demo["ultimos_7_dias"] += 1
+            if dias < 30:
+                resumen_demo["ultimos_30_dias"] += 1
+
+    ultimos_accesos = conn.execute(
+        """SELECT a.fecha_hora, a.ip, u.email, u.gestoria, u.rol
+           FROM accesos_log a JOIN usuarios u ON u.id = a.usuario_id
+           ORDER BY a.fecha_hora DESC
+           LIMIT 200"""
+    ).fetchall()
+
+    return render_template(
+        "accesos.html",
+        resumen_demo=resumen_demo,
+        ultimos_accesos=ultimos_accesos,
+        email_demo=EMAIL_CUENTA_DEMO,
+    )
 
 
 # ----------------------------------------------------------------- matches
