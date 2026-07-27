@@ -28,6 +28,25 @@ import matching
 app = Flask(__name__)
 app.secret_key = os.environ.get("SUBVANTIA_SECRET", "clave-de-desarrollo-cambiar-en-produccion")
 
+# La cuenta demo es publica y compartida por cualquier visitante que reciba el
+# enlace: varias gestorias distintas pueden estar mirandola a la vez. Por eso
+# es de solo consulta -- no puede importar carteras propias, mover expedientes
+# ni cambiar su contrasena compartida, para que un visitante no altere lo que
+# esta viendo otro. Quien quiera probarla con sus propios datos necesita una
+# cuenta individual (la crea el admin desde "Gestorias").
+EMAIL_CUENTA_DEMO = "demo@subvantia.test"
+MENSAJE_DEMO_SOLO_LECTURA = (
+    "Esta es la cuenta de demostración pública: es solo para ver cómo "
+    "funciona Subvantia con datos de ejemplo, no para modificar nada (la "
+    "comparten varias gestorías a la vez). Si quieres probarlo con tu propia "
+    "cartera de clientes, pide tu acceso a Subvantia y te creamos una cuenta "
+    "con tu email."
+)
+
+
+def es_cuenta_demo():
+    return session.get("usuario_email") == EMAIL_CUENTA_DEMO
+
 
 # ---------------------------------------------------------------- utilidades
 
@@ -94,6 +113,7 @@ def login():
             session["usuario_nombre"] = usuario["nombre"]
             session["usuario_gestoria"] = usuario["gestoria"]
             session["usuario_rol"] = rol
+            session["usuario_email"] = usuario["email"]
             return redirect(url_for("dashboard"))
         flash("Email o contraseña incorrectos.")
     # Las credenciales de demo/admin en pantalla son solo una ayuda para
@@ -114,6 +134,9 @@ def logout():
 @login_requerido
 def cambiar_password():
     if request.method == "POST":
+        if es_cuenta_demo():
+            flash(MENSAJE_DEMO_SOLO_LECTURA)
+            return redirect(url_for("dashboard"))
         actual = request.form.get("actual", "")
         nueva = request.form.get("nueva", "")
         confirmar = request.form.get("confirmar", "")
@@ -237,6 +260,9 @@ def clientes():
 @app.route("/clientes/importar", methods=["POST"])
 @login_requerido
 def importar_clientes():
+    if es_cuenta_demo():
+        flash(MENSAJE_DEMO_SOLO_LECTURA)
+        return redirect(url_for("clientes"))
     conn = get_conn()
     uid = session["usuario_id"]
     archivo = request.files.get("archivo")
@@ -561,6 +587,9 @@ def ver_email(match_id):
 @app.route("/matches/<int:match_id>/crear_expediente", methods=["POST"])
 @login_requerido
 def crear_expediente(match_id):
+    if es_cuenta_demo():
+        flash(MENSAJE_DEMO_SOLO_LECTURA)
+        return redirect(request.referrer or url_for("matches"))
     conn = get_conn()
     existente = conn.execute("SELECT id FROM expedientes WHERE match_id = ?", (match_id,)).fetchone()
     if not existente:
@@ -605,6 +634,9 @@ def expedientes():
 @app.route("/expedientes/<int:expediente_id>/avanzar", methods=["POST"])
 @login_requerido
 def avanzar_expediente(expediente_id):
+    if es_cuenta_demo():
+        flash(MENSAJE_DEMO_SOLO_LECTURA)
+        return redirect(url_for("expedientes"))
     conn = get_conn()
     exp = conn.execute("SELECT * FROM expedientes WHERE id = ?", (expediente_id,)).fetchone()
     if exp:
