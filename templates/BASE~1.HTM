@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>{% block title %}Subvantia{% endblock %}</title>
+<link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% if session.get('usuario_id') %}
+<div class="topbar">
+  <div class="brand"><img src="{{ url_for('static', filename='logo.png') }}" class="brand-icon" alt=""> SUBVANTIA</div>
+  <nav>
+    <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' }}">Dashboard</a>
+    <a href="{{ url_for('clientes') }}" class="{{ 'active' if request.endpoint == 'clientes' }}">Clientes</a>
+    <a href="{{ url_for('convocatorias') }}" class="{{ 'active' if request.endpoint == 'convocatorias' }}">Convocatorias</a>
+    <a href="{{ url_for('matches') }}" class="{{ 'active' if request.endpoint == 'matches' }}">Cruce</a>
+    <a href="{{ url_for('expedientes') }}" class="{{ 'active' if request.endpoint == 'expedientes' }}">Expedientes</a>
+    {% if session.get('usuario_rol') == 'admin' %}
+    <a href="{{ url_for('gestorias') }}" class="{{ 'active' if request.endpoint in ('gestorias', 'nueva_gestoria') }}">Gestorías</a>
+    {% endif %}
+  </nav>
+  <div class="user">
+    <span>{{ session.get('usuario_gestoria') }}{% if session.get('usuario_rol') == 'admin' %} · admin{% endif %}</span>
+    {% if session.get('usuario_email') != 'demo@subvantia.test' %}
+    <a href="{{ url_for('cambiar_password') }}">Cambiar contraseña</a>
+    {% endif %}
+    <a href="{{ url_for('logout') }}">Salir</a>
+  </div>
+</div>
+{% endif %}
+
+{% if session.get('usuario_email') == 'demo@subvantia.test' %}
+<div class="demo-banner">
+  Estás en la <strong>cuenta de demostración pública</strong> (datos de ejemplo, solo para consultar). Para probar Subvantia con tu propia cartera de clientes, pide tu acceso y te creamos una cuenta con tu email.
+</div>
+{% endif %}
+
+<div class="container">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      {% for m in messages %}
+        <div class="alert-flash">{{ m }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+</body>
+</html>
