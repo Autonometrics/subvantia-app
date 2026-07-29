@@ -7,6 +7,69 @@ plazo vigente 5. >=80 con CNAE exacto = alta, 50-79 = media, <50 = baja.
 """
 
 import datetime as dt
+import unicodedata
+
+# ---------------------------------------------------------- normalizacion de texto
+#
+# Los Excel reales llegan con variantes de formato (mayusculas/minusculas,
+# puntos, acentos, sinonimos): "S.L." vs "SL", "Castilla Leon" vs
+# "Castilla y Leon", "Cataluna" vs "Catalunya", "Pais Vasco" vs "Euskadi"...
+# Antes de esta normalizacion, esas variantes hacian que un cliente perdiera
+# el match SIN NINGUN AVISO (no da error, simplemente no aparece en el
+# cruce) -- el fallo mas peligroso posible porque es invisible. Se corrige
+# aqui normalizando texto (mayusculas, acentos, puntos) y con un mapa de
+# sinonimos conocidos para CCAA y forma juridica.
+
+def _normalizar_texto(valor):
+    valor = (valor or "").strip().lower()
+    valor = valor.replace(".", "")
+    valor = "".join(c for c in unicodedata.normalize("NFKD", valor) if not unicodedata.combining(c))
+    return " ".join(valor.split())
+
+
+# canonico -> lista de variantes normalizadas que debe reconocer como el mismo valor
+_CCAA_ALIASES = {
+    "andalucia": ["andalucia"],
+    "aragon": ["aragon"],
+    "asturias": ["asturias", "principado de asturias"],
+    "baleares": ["baleares", "islas baleares", "illes balears"],
+    "canarias": ["canarias", "islas canarias"],
+    "cantabria": ["cantabria"],
+    "castilla y leon": ["castilla y leon", "castilla leon"],
+    "castilla-la mancha": ["castilla-la mancha", "castilla la mancha"],
+    "cataluna": ["cataluna", "catalunya"],
+    "comunidad valenciana": ["comunidad valenciana", "comunitat valenciana", "valencia", "comunidad valenciana (cv)"],
+    "extremadura": ["extremadura"],
+    "galicia": ["galicia"],
+    "madrid": ["madrid", "comunidad de madrid"],
+    "murcia": ["murcia", "region de murcia"],
+    "navarra": ["navarra", "comunidad foral de navarra"],
+    "pais vasco": ["pais vasco", "euskadi", "comunidad autonoma del pais vasco"],
+    "rioja": ["la rioja", "rioja"],
+    "ceuta": ["ceuta"],
+    "melilla": ["melilla"],
+}
+_CCAA_LOOKUP = {alias: canon for canon, alias_list in _CCAA_ALIASES.items() for alias in alias_list}
+
+_FORMA_JURIDICA_ALIASES = {
+    "sl": ["sl", "s l", "sociedad limitada", "srl"],
+    "sa": ["sa", "s a", "sociedad anonima"],
+    "autonomo": ["autonomo", "autonoma", "trabajador autonomo", "empresario individual", "profesional autonomo"],
+    "pyme": ["pyme", "pymes"],
+    "otra": ["otra", "otros"],
+}
+_FORMA_JURIDICA_LOOKUP = {alias: canon for canon, alias_list in _FORMA_JURIDICA_ALIASES.items() for alias in alias_list}
+
+
+def _canonico_ccaa(valor):
+    norm = _normalizar_texto(valor)
+    return _CCAA_LOOKUP.get(norm, norm)
+
+
+def _canonico_forma_juridica(valor):
+    norm = _normalizar_texto(valor)
+    return _FORMA_JURIDICA_LOOKUP.get(norm, norm)
+
 
 SECTOR_MAP = {
     "CONV-003": {"62", "63", "86", "87", "88", "55", "56", "10", "11", "51"},
@@ -57,21 +120,21 @@ def cnae_coincide(cliente_cnae, conv):
 
 
 def ccaa_coincide(cliente_ccaa, conv):
-    conv_ccaa = (conv["comunidad_autonoma"] or "").strip()
-    if conv_ccaa.lower() in ("todas", ""):
+    conv_ccaa_norm = _normalizar_texto(conv["comunidad_autonoma"])
+    if conv_ccaa_norm in ("todas", ""):
         return True
-    return conv_ccaa.strip().lower() == (cliente_ccaa or "").strip().lower()
+    return _canonico_ccaa(conv["comunidad_autonoma"]) == _canonico_ccaa(cliente_ccaa)
 
 
 def forma_juridica_coincide(cliente_fj, conv):
-    raw = (conv["forma_juridica_elegible"] or "").strip().lower()
+    raw = _normalizar_texto(conv["forma_juridica_elegible"])
     if raw == "":
         return True
-    opciones = [o.strip() for o in raw.split(",")]
-    cliente_fj_norm = (cliente_fj or "").strip().lower()
-    if cliente_fj_norm in opciones:
+    opciones = [_FORMA_JURIDICA_LOOKUP.get(o.strip(), o.strip()) for o in raw.split(",")]
+    cliente_fj_canon = _canonico_forma_juridica(cliente_fj)
+    if cliente_fj_canon in opciones:
         return True
-    if "pyme" in opciones and cliente_fj_norm in ("sl", "sa", "otra"):
+    if "pyme" in opciones and cliente_fj_canon in ("sl", "sa", "otra"):
         return True
     return False
 
@@ -186,6 +249,23 @@ def recalcular_todo(conn, usuario_id):
     for c in clientes:
         total += recalcular_matches_cliente(conn, c["id"], usuario_id)
     return total, len(clientes)
+
+
+def recalcular_todas_las_gestorias(conn):
+    """Recalcula el cruce para TODAS las gestorias (no solo la del admin que
+    esta editando la convocatoria). Imprescindible: al crear/editar/corregir
+    una convocatoria, cada gestoria cliente tiene que ver el cambio reflejado
+    en su propio cruce -- si solo se recalculara para quien hace el cambio
+    (normalmente el admin, que no tiene cartera propia), el resto se quedaria
+    con datos de cruce desactualizados sin ningun aviso."""
+    gestorias = conn.execute("SELECT id FROM usuarios WHERE rol = 'gestoria'").fetchall()
+    total_matches = 0
+    total_clientes = 0
+    for g in gestorias:
+        matches, n_clientes = recalcular_todo(conn, g["id"])
+        total_matches += matches
+        total_clientes += n_clientes
+    return total_matches, total_clientes, len(gestorias)
 
 
 def generar_email(conn, match_id):

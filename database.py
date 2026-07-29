@@ -312,9 +312,20 @@ def init_db(seed_demo_data=True):
         _migrar_columna_rol(conn)
         _migrar_columna_estado_suscripcion(conn)
 
-    cur = conn.execute("SELECT COUNT(*) AS n FROM convocatorias")
-    if cur.fetchone()["n"] == 0:
-        _seed_convocatorias(conn)
+    # A diferencia de usuarios/clientes (que solo se siembran la primera vez),
+    # las convocatorias se resiembran en CADA arranque: _seed_convocatorias usa
+    # INSERT OR REPLACE / ON CONFLICT DO UPDATE por id_convocatoria, asi que
+    # reejecutarlo es seguro (nunca duplica) y permite que el Excel maestro
+    # (subvantia_app/seed_data/Subvantia_Sprint0_Convocatorias_Piloto.xlsx) sea
+    # la fuente de verdad: para anyadir o corregir convocatorias basta con
+    # actualizar ese Excel y redesplegar en Render, sin tocar el panel admin.
+    #
+    # Contrapartida importante: si en el futuro se edita una convocatoria a
+    # mano desde el panel de admin en produccion SIN reflejar ese cambio en el
+    # Excel maestro, el siguiente despliegue la sobreescribira con los valores
+    # del Excel. Mientras el Excel se mantenga sincronizado (como se ha hecho
+    # hasta ahora), esto no supone perdida de datos.
+    _seed_convocatorias(conn)
 
     cur = conn.execute("SELECT COUNT(*) AS n FROM usuarios")
     if cur.fetchone()["n"] == 0:
