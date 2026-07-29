@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Subvantia{% endblock %}
+{% block content %}
+<h1 class="page-title">Dashboard</h1>
+<p class="page-sub">Resumen en vivo de tu cartera cruzada contra las convocatorias activas.</p>
+
+<div class="kpi-grid">
+  <div class="kpi-card"><div class="num">{{ total_clientes }}</div><div class="label">Clientes en cartera</div></div>
+  <div class="kpi-card"><div class="num">{{ convocatorias_activas }}</div><div class="label">Convocatorias activas</div></div>
+  <div class="kpi-card"><div class="num">{{ "{:,.0f}".format(dinero_potencial).replace(",", ".") }} €</div><div class="label">Dinero potencial</div></div>
+  <div class="kpi-card"><div class="num">{{ total_matches }}</div><div class="label">Matches generados</div></div>
+</div>
+
+{% if alertas %}
+<div class="card">
+  <h2>Alertas — convocatorias con plazo sin confirmar</h2>
+  <table>
+    <tr><th>ID</th><th>Convocatoria</th><th>Cierre</th></tr>
+    {% for a in alertas %}
+    <tr>
+      <td>{{ a.id_convocatoria }}</td>
+      <td>{{ a.titulo }}</td>
+      <td>{{ a.fecha_cierre or "sin confirmar" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% if cierran_pronto %}
+<div class="card">
+  <h2>Cierran pronto (próximos 30 días)</h2>
+  <table>
+    <tr><th>ID</th><th>Convocatoria</th><th>Cierre</th><th>Días restantes</th><th>Clientes elegibles</th></tr>
+    {% for c in cierran_pronto %}
+    <tr>
+      <td>{{ c.id_convocatoria }}</td>
+      <td>{{ c.titulo }}</td>
+      <td>{{ c.fecha_cierre }}</td>
+      <td>{% if c.dias_restantes <= 7 %}<span class="badge badge-verificar_urgente">{{ c.dias_restantes }} días</span>{% else %}{{ c.dias_restantes }} días{% endif %}</td>
+      <td>{{ c.clientes_elegibles }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{% if mayor_cuantia %}
+<div class="card">
+  <h2>Mayor cuantía potencial</h2>
+  <table>
+    <tr><th>ID</th><th>Convocatoria</th><th>Cuantía máx.</th><th>Clientes elegibles</th></tr>
+    {% for c in mayor_cuantia %}
+    <tr>
+      <td>{{ c.id_convocatoria }}</td>
+      <td>{{ c.titulo }}</td>
+      <td>{{ "{:,.0f}".format(c.cuantia_max_eur).replace(",", ".") }} €</td>
+      <td>{{ c.clientes_elegibles }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2>Convocatorias con más clientes elegibles</h2>
+  {% if top_convocatorias %}
+  <table>
+    <tr><th>ID</th><th>Convocatoria</th><th>Clientes elegibles</th><th>Estado</th></tr>
+    {% for c in top_convocatorias %}
+    <tr>
+      <td>{{ c.id_convocatoria }}</td>
+      <td>{{ c.titulo }}</td>
+      <td>{{ c.clientes_elegibles }}</td>
+      <td><span class="badge badge-{{ c.estado_convocatoria }}">{{ c.estado_convocatoria }}</span></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <div class="empty-state">Todavía no hay clientes importados. <a href="{{ url_for('clientes') }}" style="color:var(--navy); font-weight:600;">Importa tu primera cartera →</a></div>
+  {% endif %}
+</div>
+{% endblock %}
