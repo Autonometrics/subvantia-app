@@ -10,6 +10,7 @@ Luego abrir http://localhost:5000  (usuario demo: demo@subvantia.test / subvanti
 import io
 import os
 import re
+import unicodedata
 import datetime as dt
 
 from flask import (
@@ -304,6 +305,54 @@ def clientes():
     return render_template("clientes.html", clientes=filas)
 
 
+# Las gestorias no siempre suben la plantilla oficial: muchas suben su
+# propio Excel ya existente. Los desplegables de la plantilla no protegen
+# nada de eso -- solo ayudan a quien realmente parte de la plantilla. Para
+# que un Excel "casero" con cabeceras parecidas pero no identicas tambien
+# funcione, las cabeceras se comparan de forma tolerante (sin tildes,
+# mayusculas/minusculas, con alias habituales) en vez de exigir el texto
+# exacto.
+def _normalizar_cabecera(valor):
+    valor = (valor or "").strip().lower()
+    valor = "".join(c for c in unicodedata.normalize("NFKD", valor) if not unicodedata.combining(c))
+    return " ".join(valor.split())
+
+
+CABECERAS_ALIASES = {
+    "Nombre": ["nombre", "nombre empresa", "nombre cliente", "razon social", "empresa"],
+    "CNAE": ["cnae", "codigo cnae", "sector cnae", "sector", "actividad", "cnae elegible"],
+    "Comunidad Autonoma": ["comunidad autonoma", "comunidad autonoma (ccaa)", "ccaa", "comunidad"],
+    "Forma juridica": ["forma juridica", "tipo de sociedad", "forma societaria", "forma legal"],
+    "Fecha de alta": ["fecha de alta", "fecha alta", "fecha de constitucion", "fecha constitucion", "antiguedad"],
+    "CIF/NIF": ["cif/nif", "cif", "nif", "cif nif"],
+    "Provincia": ["provincia"],
+    "Gestor asignado": ["gestor asignado", "gestor", "gestor responsable"],
+}
+_CABECERAS_LOOKUP = {
+    _normalizar_cabecera(alias): canon
+    for canon, alias_list in CABECERAS_ALIASES.items()
+    for alias in alias_list
+}
+
+_FORMATOS_FECHA = ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%Y/%m/%d", "%d/%m/%y", "%d-%m-%y")
+
+
+def _parsear_fecha_alta(valor):
+    """Intenta varios formatos habituales (ademas de fechas reales de Excel).
+    Devuelve (fecha_iso_o_None, valor_original_si_no_se_reconocio)."""
+    if hasattr(valor, "strftime"):
+        return valor.strftime("%Y-%m-%d"), None
+    if not valor:
+        return None, None
+    texto = str(valor).strip()
+    for formato in _FORMATOS_FECHA:
+        try:
+            return dt.datetime.strptime(texto, formato).strftime("%Y-%m-%d"), None
+        except ValueError:
+            continue
+    return texto[:10], texto  # se guarda tal cual, pero se marca como no reconocida
+
+
 @app.route("/clientes/importar", methods=["POST"])
 @login_requerido
 def importar_clientes():
@@ -320,25 +369,35 @@ def importar_clientes():
     try:
         wb = openpyxl.load_workbook(archivo, data_only=True)
         hoja = wb["Cartera"] if "Cartera" in wb.sheetnames else wb.active
-        headers = [c.value for c in hoja[1]]
+        headers_originales = [c.value for c in hoja[1]]
+        # Cada cabecera del fichero se traduce a su nombre canonico si se
+        # reconoce un alias; si no se reconoce, se deja tal cual (por si el
+        # fichero ya usa exactamente el nombre canonico).
+        headers = [
+            _CABECERAS_LOOKUP.get(_normalizar_cabecera(h), h) if h else h
+            for h in headers_originales
+        ]
         idx = {h: i for i, h in enumerate(headers) if h}
 
         columnas_necesarias = ["Nombre", "CNAE", "Comunidad Autonoma", "Forma juridica", "Fecha de alta"]
         faltan = [c for c in columnas_necesarias if c not in idx]
         if faltan:
-            flash(f"Faltan columnas obligatorias en el Excel: {', '.join(faltan)}")
+            flash(f"Faltan columnas obligatorias en el Excel: {', '.join(faltan)}. "
+                  f"Cabeceras encontradas en tu fichero: {', '.join(str(h) for h in headers_originales if h)}.")
             return redirect(url_for("clientes"))
 
         insertados = 0
         nuevos_ids = []
+        avisos_cnae = []
+        avisos_fecha = []
         for row in hoja.iter_rows(min_row=2, values_only=True):
             if row[idx["Nombre"]] is None:
                 continue
-            fecha_alta = row[idx["Fecha de alta"]]
-            if hasattr(fecha_alta, "strftime"):
-                fecha_alta = fecha_alta.strftime("%Y-%m-%d")
-            else:
-                fecha_alta = str(fecha_alta)[:10] if fecha_alta else None
+            nombre_cliente = row[idx["Nombre"]]
+
+            fecha_alta, fecha_no_reconocida = _parsear_fecha_alta(row[idx["Fecha de alta"]])
+            if fecha_no_reconocida:
+                avisos_fecha.append(f"{nombre_cliente} ({fecha_no_reconocida})")
 
             # La plantilla ofrece el CNAE como desplegable "62 - Programacion,
             # consultoria..." para que no haya que memorizar codigos; aqui nos
@@ -346,9 +405,16 @@ def importar_clientes():
             # para que la tabla de clientes y las exportaciones muestren un
             # dato limpio en vez del texto completo del desplegable. Sigue
             # aceptando el formato antiguo (solo el codigo, sin descripcion).
+            # Si el Excel de la gestoria trae el CNAE como texto libre sin
+            # ningun numero delante, no hay forma de adivinar el codigo: se
+            # guarda tal cual y se avisa, en vez de fallar en silencio (ese
+            # cliente se quedaria fuera de cualquier convocatoria restringida
+            # por sector sin que nadie se entere).
             cnae_valor = row[idx["CNAE"]]
             m = re.match(r"^\s*(\d+)", str(cnae_valor)) if cnae_valor is not None else None
             cnae_codigo = m.group(1) if m else cnae_valor
+            if cnae_valor is not None and not m:
+                avisos_cnae.append(f"{nombre_cliente} (\"{cnae_valor}\")")
 
             sql_insertar_cliente = """INSERT INTO clientes
                    (usuario_id, cif_nif, nombre, cnae, comunidad_autonoma, provincia,
@@ -363,7 +429,7 @@ def importar_clientes():
                 (
                     uid,
                     row[idx.get("CIF/NIF")] if "CIF/NIF" in idx else None,
-                    row[idx["Nombre"]],
+                    nombre_cliente,
                     cnae_codigo,
                     row[idx["Comunidad Autonoma"]],
                     row[idx.get("Provincia")] if "Provincia" in idx else None,
@@ -382,6 +448,13 @@ def importar_clientes():
             total_matches += matching.recalcular_matches_cliente(conn, cid, uid)
 
         flash(f"Importados {insertados} clientes. Generados {total_matches} matches automaticamente.")
+        if avisos_cnae:
+            flash("No se reconoció el sector (CNAE) de estos clientes -- revísalo a mano, "
+                  "de momento no cruzarán con convocatorias restringidas por sector: "
+                  + "; ".join(avisos_cnae))
+        if avisos_fecha:
+            flash("No se reconoció el formato de fecha de alta de estos clientes -- revísalo a mano "
+                  "(usa AAAA-MM-DD si es texto): " + "; ".join(avisos_fecha))
     except Exception as e:
         flash(f"Error al importar el Excel: {e}")
 
