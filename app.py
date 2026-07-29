@@ -412,8 +412,8 @@ def nueva_convocatoria():
         )
         conn.commit()
 
-        total, n_clientes = matching.recalcular_todo(conn, session["usuario_id"])
-        flash(f"Convocatoria {id_convocatoria} creada. Cruce recalculado: {total} matches sobre {n_clientes} clientes.")
+        total, n_clientes, n_gestorias = matching.recalcular_todas_las_gestorias(conn)
+        flash(f"Convocatoria {id_convocatoria} creada. Cruce recalculado: {total} matches sobre {n_clientes} clientes de {n_gestorias} gestorías.")
         return redirect(url_for("convocatorias"))
 
     return render_template("convocatoria_form.html", c=None)
@@ -439,8 +439,8 @@ def editar_convocatoria(id_convocatoria):
         )
         conn.commit()
 
-        total, n_clientes = matching.recalcular_todo(conn, session["usuario_id"])
-        flash(f"Convocatoria {id_convocatoria} actualizada. Cruce recalculado: {total} matches sobre {n_clientes} clientes.")
+        total, n_clientes, n_gestorias = matching.recalcular_todas_las_gestorias(conn)
+        flash(f"Convocatoria {id_convocatoria} actualizada. Cruce recalculado: {total} matches sobre {n_clientes} clientes de {n_gestorias} gestorías.")
         return redirect(url_for("convocatorias"))
 
     return render_template("convocatoria_form.html", c=c)
