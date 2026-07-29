@@ -199,19 +199,15 @@ def dashboard():
         "SELECT COUNT(*) AS n FROM matches WHERE usuario_id = ?", (uid,)
     ).fetchone()["n"]
 
-    por_banda = {
-        r["banda"]: r["n"]
-        for r in conn.execute(
-            "SELECT banda, COUNT(*) AS n FROM matches WHERE usuario_id = ? GROUP BY banda", (uid,)
-        ).fetchall()
-    }
-
-    # dinero potencial: suma de la cuantia de todos los matches de banda alta
-    # (misma metodologia que Subvantia_Panel_Impacto.xlsx, para que el numero
-    # sea consistente en todos los materiales del proyecto)
+    # Desde que el motor de cruce (matching.py) exige CCAA, CNAE, forma
+    # juridica y antiguedad como requisitos excluyentes, todo match que
+    # sobrevive cumple el 100% de los criterios objetivos: la banda
+    # alta/media/baja ya no distingue nada (todo cae en "alta"). Por eso el
+    # dashboard ya no desglosa por banda -- en su lugar avisa de lo que si
+    # varia entre matches: cuanta urgencia tiene (fecha de cierre) y cuanto
+    # dinero hay en juego (cuantia).
     dinero_potencial = conn.execute(
-        """SELECT COALESCE(SUM(cuantia_estimada), 0) AS total
-           FROM matches WHERE usuario_id = ? AND banda = 'alta'""",
+        "SELECT COALESCE(SUM(cuantia_estimada), 0) AS total FROM matches WHERE usuario_id = ?",
         (uid,),
     ).fetchone()["total"]
 
@@ -230,9 +226,52 @@ def dashboard():
         """SELECT conv.id_convocatoria, conv.titulo, conv.estado_convocatoria, conv.fecha_cierre,
                   COUNT(DISTINCT m.cliente_id) AS clientes_elegibles
            FROM matches m JOIN convocatorias conv ON conv.id_convocatoria = m.id_convocatoria
-           WHERE m.usuario_id = ? AND m.banda IN ('alta','media')
+           WHERE m.usuario_id = ?
            GROUP BY conv.id_convocatoria
            ORDER BY clientes_elegibles DESC
+           LIMIT 6""",
+        (uid,),
+    ).fetchall()
+
+    # Cierran pronto: convocatorias con match, abiertas, con fecha de cierre
+    # confirmada dentro de los proximos 30 dias -- para priorizar a que
+    # clientes contactar primero.
+    hoy = dt.date.today().isoformat()
+    limite_urgencia = (dt.date.today() + dt.timedelta(days=30)).isoformat()
+    cierran_pronto = conn.execute(
+        """SELECT conv.id_convocatoria, conv.titulo, conv.fecha_cierre,
+                  COUNT(DISTINCT m.cliente_id) AS clientes_elegibles
+           FROM matches m JOIN convocatorias conv ON conv.id_convocatoria = m.id_convocatoria
+           WHERE m.usuario_id = ? AND conv.estado_convocatoria IN ('abierta', 'verificar_urgente')
+                 AND conv.fecha_cierre IS NOT NULL AND conv.fecha_cierre <> ''
+                 AND conv.fecha_cierre BETWEEN ? AND ?
+           GROUP BY conv.id_convocatoria
+           ORDER BY conv.fecha_cierre ASC
+           LIMIT 8""",
+        (uid, hoy, limite_urgencia),
+    ).fetchall()
+    cierran_pronto = [
+        {
+            "id_convocatoria": r["id_convocatoria"],
+            "titulo": r["titulo"],
+            "fecha_cierre": r["fecha_cierre"],
+            "clientes_elegibles": r["clientes_elegibles"],
+            "dias_restantes": (
+                dt.datetime.strptime(str(r["fecha_cierre"])[:10], "%Y-%m-%d").date() - dt.date.today()
+            ).days,
+        }
+        for r in cierran_pronto
+    ]
+
+    # Mayor cuantia potencial: convocatorias con match ordenadas por cuantia
+    # maxima descendente -- para priorizar por impacto economico.
+    mayor_cuantia = conn.execute(
+        """SELECT conv.id_convocatoria, conv.titulo, conv.cuantia_max_eur,
+                  COUNT(DISTINCT m.cliente_id) AS clientes_elegibles
+           FROM matches m JOIN convocatorias conv ON conv.id_convocatoria = m.id_convocatoria
+           WHERE m.usuario_id = ? AND conv.cuantia_max_eur IS NOT NULL
+           GROUP BY conv.id_convocatoria
+           ORDER BY conv.cuantia_max_eur DESC
            LIMIT 6""",
         (uid,),
     ).fetchall()
@@ -241,13 +280,12 @@ def dashboard():
         "dashboard.html",
         total_clientes=total_clientes,
         total_matches=total_matches,
-        alta=por_banda.get("alta", 0),
-        media=por_banda.get("media", 0),
-        baja=por_banda.get("baja", 0),
         dinero_potencial=dinero_potencial,
         convocatorias_activas=convocatorias_activas,
         alertas=alertas,
         top_convocatorias=top_convocatorias,
+        cierran_pronto=cierran_pronto,
+        mayor_cuantia=mayor_cuantia,
     )
 
 

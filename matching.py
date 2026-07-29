@@ -7,6 +7,7 @@ plazo vigente 5. >=80 con CNAE exacto = alta, 50-79 = media, <50 = baja.
 """
 
 import datetime as dt
+import re
 import unicodedata
 
 # ---------------------------------------------------------- normalizacion de texto
@@ -66,10 +67,64 @@ def _canonico_ccaa(valor):
     return _CCAA_LOOKUP.get(norm, norm)
 
 
-def _canonico_forma_juridica(valor):
-    norm = _normalizar_texto(valor)
-    return _FORMA_JURIDICA_LOOKUP.get(norm, norm)
+# ---------------------------------------------------------- clasificador de forma juridica
+#
+# El campo "forma_juridica_elegible" de una convocatoria real casi nunca llega
+# en un formato limpio de 2-3 opciones: llega como texto libre copiado de la
+# convocatoria oficial -- "autonomo (RETA)", "microempresa, pequena empresa,
+# mediana empresa", "cualquier forma juridica, incl. CB y sociedad civil",
+# "SL, SA, otra (empresa constituida)", "pyme (10-249 empleados)", etc. Un
+# lookup exacto por alias (como el de arriba, pensado para el dato LIMPIO del
+# cliente) deja sin reconocer la mayoria de estas variantes -- y si ese
+# requisito pasa a ser EXCLUYENTE, cualquier variante no reconocida borraria
+# el match para todo el mundo. Por eso aqui se clasifica por palabras clave
+# en vez de por igualdad exacta, y se ignoran los incisos entre parentesis.
+_PATRON_PARENTESIS = re.compile(r"\([^)]*\)")
 
+
+def _limpiar_incisos(texto):
+    return _PATRON_PARENTESIS.sub("", texto).strip()
+
+
+def _clasificar_forma_juridica(texto):
+    t = _limpiar_incisos(_normalizar_texto(texto))
+    if not t:
+        return ""
+    if "cualquier forma juridica" in t or t in ("cualquier", "cualquiera", "cualquier forma"):
+        return "cualquiera"
+    if re.search(r"\bsrl\b", t) or "sociedad limitada" in t:
+        return "sl"
+    if re.search(r"\bsl\b", t):
+        return "sl"
+    if "sociedad anonima" in t:
+        return "sa"
+    if re.search(r"\bsa\b", t):
+        return "sa"
+    if (
+        "autonomo" in t or "autonoma" in t or "persona fisica" in t or "reta" in t
+        or "empresario individual" in t or "trabajador por cuenta propia" in t
+    ):
+        return "autonomo"
+    if (
+        "pyme" in t or "pymes" in t or "microempresa" in t or "micropyme" in t
+        or "pequena empresa" in t or "mediana empresa" in t or "startup" in t
+        or "start up" in t or "nueva creacion" in t
+    ):
+        return "pyme"
+    if (
+        t in ("otra", "otros") or "entidad local" in t or "comunidad de bienes" in t
+        or "sociedad civil" in t or "asociacion" in t or "persona juridica" in t
+        or "empresa constituida" in t
+    ):
+        return "otra"
+    return t
+
+
+def _canonico_forma_juridica(valor):
+    return _clasificar_forma_juridica(valor)
+
+
+_INDUSTRIA_10_33 = {str(n).zfill(2) for n in range(10, 34)}  # seccion C, industria manufacturera completa
 
 SECTOR_MAP = {
     "CONV-003": {"62", "63", "86", "87", "88", "55", "56", "10", "11", "51"},
@@ -79,6 +134,24 @@ SECTOR_MAP = {
     "CONV-018": {"10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20",
                  "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31",
                  "32", "33"},
+    # Anadidos al ampliar la exclusion dura a CNAE: estas convocatorias tienen
+    # texto libre en cnae_elegibles que el parser de "todos"/"todos excepto"
+    # no reconoce. Sin esta entrada, caian en "no_evaluable" -> cnae_ok=False
+    # SIEMPRE -> con exclusion dura se habrian quedado sin ningun match para
+    # ningun cliente, aunque la convocatoria fuera legitima para su sector.
+    "CONV-004": None,  # "todos (linea 2: implantacion en pymes de cualquier sector...)" -> universal
+    "CONV-008": _INDUSTRIA_10_33,  # "industrial" (reindustrializacion de pymes industriales)
+    "CONV-013": {"62", "63", "72"},  # "62, 63, 72 (base tecnologica / I+D)"
+    "CONV-015": {"10", "11"},  # "10, 11 (industria agroalimentaria)"
+    "CONV-016": {"55", "56"},  # "55, 56 (alojamiento y actividades turisticas)"
+    "CONV-017": {"55", "56", "79", "93"},  # alojamiento, turismo activo, intermediacion turistica
+    "CONV-020": None,  # sector "no detallado en fuente oficial, pendiente de confirmar" -> universal (ver aviso ya existente en verificado_manualmente)
+    "CONV-021": {str(n).zfill(2) for n in range(10, 33)},  # "industria (CNAE seccion C, 10-32)"
+    "CONV-025": None,  # "todos (proyecto validado como innovador)"
+    "CONV-029": None,  # "todos (proyectos alineados con la estrategia S3 regional)"
+    "CONV-037": None,  # "todos (excluidos sectores del articulo 7 del Rgto FEDER)" -- exclusion no detallada por CNAE
+    "CONV-038": {"58", "62", "63", "72"},  # "tecnologico/digital"
+    "CONV-039": {"58", "62", "63", "72"},  # "tecnologico/digital"
 }
 
 
@@ -127,14 +200,23 @@ def ccaa_coincide(cliente_ccaa, conv):
 
 
 def forma_juridica_coincide(cliente_fj, conv):
-    raw = _normalizar_texto(conv["forma_juridica_elegible"])
+    raw = (conv["forma_juridica_elegible"] or "").strip()
     if raw == "":
         return True
-    opciones = [_FORMA_JURIDICA_LOOKUP.get(o.strip(), o.strip()) for o in raw.split(",")]
+    opciones = [_clasificar_forma_juridica(o) for o in raw.split(",")]
+    if "cualquiera" in opciones:
+        return True
     cliente_fj_canon = _canonico_forma_juridica(cliente_fj)
     if cliente_fj_canon in opciones:
         return True
-    if "pyme" in opciones and cliente_fj_canon in ("sl", "sa", "otra"):
+    # "pyme" en una convocatoria es una categoria de TAMANO (pequena y mediana
+    # empresa), no de forma juridica -- por definicion (UE y española) incluye
+    # a autonomos, SL, SA y cualquier otra forma que este por debajo del
+    # umbral de tamano. No hay forma de comprobar el tamano real del cliente
+    # con los datos que maneja Subvantia, asi que "pyme" no restringe por
+    # forma juridica: se admite cualquiera. (Antes esta regla excluia a los
+    # autonomos, lo cual era incorrecto -- un autonomo SI es pyme.)
+    if "pyme" in opciones:
         return True
     return False
 
@@ -173,46 +255,57 @@ def plazo_vigente(conv, hoy):
 
 
 def calcular_match(cliente, conv, hoy=None):
+    """Los 4 requisitos objetivos de una convocatoria son EXCLUYENTES: si el
+       cliente no cumple alguno, no hay match en absoluto (no aparece en el
+       cruce, ni siquiera en banda baja).
+       - Comunidad autonoma: si la convocatoria esta restringida a una CCAA
+         concreta y el cliente es de otra, se descarta. Si la convocatoria es
+         "todas" (estatal/BOE o fondo europeo), no aplica restriccion.
+       - CNAE: si la convocatoria limita a ciertos sectores y el cliente no
+         esta en ninguno, se descarta.
+       - Forma juridica: si la convocatoria limita a ciertas formas juridicas
+         y el cliente no encaja en ninguna, se descarta. "pyme" no cuenta
+         como restriccion real porque es una categoria de tamano, no de forma
+         juridica: un autonomo tambien es pyme.
+       - Antiguedad: si la convocatoria fija un minimo y/o maximo de meses de
+         antiguedad y el cliente no esta dentro de ese rango, se descarta.
+       - Plazo: si la convocatoria ya cerro o no esta en un estado activo, se
+         descarta (logica ya existente en plazo_vigente).
+       Como los 4 requisitos son ahora excluyentes, cualquier match que
+       sobrevive cumple el 100% de los criterios objetivos -> siempre cae en
+       banda "alta". Puntuacion y banda se mantienen por compatibilidad con
+       el resto de la app (dashboard, informes), pero ya no hay gradacion
+       media/baja: eso pasa a ser una decision de "es o no es elegible",
+       no una estimacion de probabilidad."""
     hoy = hoy or _hoy()
     if not plazo_vigente(conv, hoy):
         return None
 
-    puntos = 0
-    motivos = []
+    if not ccaa_coincide(cliente["comunidad_autonoma"], conv):
+        return None
 
     cnae_ok, _ = cnae_coincide(cliente["cnae"], conv)
-    if cnae_ok:
-        puntos += 40
-        motivos.append("CNAE coincide")
+    if not cnae_ok:
+        return None
 
-    ccaa_ok = ccaa_coincide(cliente["comunidad_autonoma"], conv)
-    if ccaa_ok:
-        puntos += 25
-        motivos.append(f"comunidad {cliente['comunidad_autonoma']}")
-
-    if forma_juridica_coincide(cliente["forma_juridica"], conv):
-        puntos += 15
+    if not forma_juridica_coincide(cliente["forma_juridica"], conv):
+        return None
 
     meses = antiguedad_meses(cliente["fecha_alta"], hoy)
-    if antiguedad_coincide(meses, conv):
-        puntos += 15
-        if conv["antiguedad_max_meses"] is not None:
-            motivos.append(f"antiguedad menor a {conv['antiguedad_max_meses']//12} anyos")
+    if not antiguedad_coincide(meses, conv):
+        return None
 
-    puntos += 5  # plazo vigente
+    motivos = ["CNAE coincide", f"comunidad {cliente['comunidad_autonoma']}", "forma juridica elegible"]
+    if conv["antiguedad_min_meses"] is not None or conv["antiguedad_max_meses"] is not None:
+        motivos.append("cumple el requisito de antiguedad de la convocatoria")
 
-    banda = "baja"
-    if puntos >= 80 and cnae_ok:
-        banda = "alta"
-    elif puntos >= 50:
-        banda = "media"
-
-    motivo_final = ", ".join(motivos) or "coincidencia parcial de criterios secundarios"
+    puntos = 100  # los 4 requisitos objetivos se han verificado arriba: cumplimiento total
+    banda = "alta"
 
     return {
         "puntuacion": puntos,
         "banda": banda,
-        "motivo": motivo_final,
+        "motivo": ", ".join(motivos),
         "cuantia_estimada": conv["cuantia_max_eur"],
         "alerta": "PLAZO SIN CONFIRMAR - verificar antes de usar" if conv["estado_convocatoria"] == "verificar_urgente" else "",
     }
