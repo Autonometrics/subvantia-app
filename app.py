@@ -9,6 +9,7 @@ Luego abrir http://localhost:5000  (usuario demo: demo@subvantia.test / subvanti
 
 import io
 import os
+import re
 import datetime as dt
 
 from flask import (
@@ -21,6 +22,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 
 import database as db
 import matching
@@ -338,6 +340,16 @@ def importar_clientes():
             else:
                 fecha_alta = str(fecha_alta)[:10] if fecha_alta else None
 
+            # La plantilla ofrece el CNAE como desplegable "62 - Programacion,
+            # consultoria..." para que no haya que memorizar codigos; aqui nos
+            # quedamos solo con el codigo numerico inicial antes de guardarlo,
+            # para que la tabla de clientes y las exportaciones muestren un
+            # dato limpio en vez del texto completo del desplegable. Sigue
+            # aceptando el formato antiguo (solo el codigo, sin descripcion).
+            cnae_valor = row[idx["CNAE"]]
+            m = re.match(r"^\s*(\d+)", str(cnae_valor)) if cnae_valor is not None else None
+            cnae_codigo = m.group(1) if m else cnae_valor
+
             sql_insertar_cliente = """INSERT INTO clientes
                    (usuario_id, cif_nif, nombre, cnae, comunidad_autonoma, provincia,
                     forma_juridica, fecha_alta, gestor_asignado, activo, creado_en)
@@ -352,7 +364,7 @@ def importar_clientes():
                     uid,
                     row[idx.get("CIF/NIF")] if "CIF/NIF" in idx else None,
                     row[idx["Nombre"]],
-                    row[idx["CNAE"]],
+                    cnae_codigo,
                     row[idx["Comunidad Autonoma"]],
                     row[idx.get("Provincia")] if "Provincia" in idx else None,
                     row[idx["Forma juridica"]],
@@ -376,6 +388,119 @@ def importar_clientes():
     return redirect(url_for("clientes"))
 
 
+# Listas cerradas para los desplegables de la plantilla de clientes. Los
+# mismos nombres canonicos que ya reconoce matching.py (_CCAA_ALIASES /
+# _clasificar_forma_juridica), para que un dato elegido del desplegable
+# SIEMPRE se reconozca en el cruce, sin depender de la normalizacion de
+# texto libre -- el desplegable evita el error de raiz, no lo corrige a
+# posteriori.
+CCAA_LISTA = [
+    "Andalucía", "Aragón", "Asturias", "Baleares", "Canarias", "Cantabria",
+    "Castilla y León", "Castilla-La Mancha", "Cataluña", "Comunidad Valenciana",
+    "Extremadura", "Galicia", "Madrid", "Murcia", "Navarra", "País Vasco",
+    "La Rioja", "Ceuta", "Melilla",
+]
+
+FORMA_JURIDICA_LISTA = ["Autónomo", "SL", "SA", "Otra"]
+
+# CNAE-2009 (INE): las 88 divisiones oficiales de 2 digitos. Se muestran como
+# "codigo - descripcion" para que quien rellena el Excel elija el sector por
+# su nombre en vez de tener que saberse el codigo de memoria. El motor de
+# cruce (matching.py) ya solo mira los 2 primeros caracteres del campo CNAE,
+# asi que basta con quedarnos con el codigo al importar (ver mas abajo).
+CNAE_DIVISIONES = [
+    ("01", "Agricultura, ganadería, caza y servicios relacionados"),
+    ("02", "Silvicultura y explotación forestal"),
+    ("03", "Pesca y acuicultura"),
+    ("05", "Extracción de antracita, hulla y lignito"),
+    ("06", "Extracción de crudo de petróleo y gas natural"),
+    ("07", "Extracción de minerales metálicos"),
+    ("08", "Otras industrias extractivas"),
+    ("09", "Actividades de apoyo a las industrias extractivas"),
+    ("10", "Industria de la alimentación"),
+    ("11", "Fabricación de bebidas"),
+    ("12", "Industria del tabaco"),
+    ("13", "Industria textil"),
+    ("14", "Confección de prendas de vestir"),
+    ("15", "Industria del cuero y del calzado"),
+    ("16", "Industria de la madera y del corcho, excepto muebles"),
+    ("17", "Industria del papel"),
+    ("18", "Artes gráficas y reproducción de soportes grabados"),
+    ("19", "Coquerías y refino de petróleo"),
+    ("20", "Industria química"),
+    ("21", "Fabricación de productos farmacéuticos"),
+    ("22", "Fabricación de productos de caucho y plásticos"),
+    ("23", "Fabricación de otros productos minerales no metálicos"),
+    ("24", "Metalurgia; fabricación de productos de hierro, acero y ferroaleaciones"),
+    ("25", "Fabricación de productos metálicos, excepto maquinaria y equipo"),
+    ("26", "Fabricación de productos informáticos, electrónicos y ópticos"),
+    ("27", "Fabricación de material y equipo eléctrico"),
+    ("28", "Fabricación de maquinaria y equipo n.c.o.p."),
+    ("29", "Fabricación de vehículos de motor, remolques y semirremolques"),
+    ("30", "Fabricación de otro material de transporte"),
+    ("31", "Fabricación de muebles"),
+    ("32", "Otras industrias manufactureras"),
+    ("33", "Reparación e instalación de maquinaria y equipo"),
+    ("35", "Suministro de energía eléctrica, gas, vapor y aire acondicionado"),
+    ("36", "Captación, depuración y distribución de agua"),
+    ("37", "Recogida y tratamiento de aguas residuales"),
+    ("38", "Recogida, tratamiento y eliminación de residuos; valorización"),
+    ("39", "Actividades de descontaminación y otros servicios de gestión de residuos"),
+    ("41", "Construcción de edificios"),
+    ("42", "Ingeniería civil"),
+    ("43", "Actividades de construcción especializada"),
+    ("45", "Venta y reparación de vehículos de motor y motocicletas"),
+    ("46", "Comercio al por mayor e intermediarios del comercio"),
+    ("47", "Comercio al por menor"),
+    ("49", "Transporte terrestre y por tubería"),
+    ("50", "Transporte marítimo y por vías navegables interiores"),
+    ("51", "Transporte aéreo"),
+    ("52", "Almacenamiento y actividades anexas al transporte"),
+    ("53", "Actividades postales y de correos"),
+    ("55", "Servicios de alojamiento"),
+    ("56", "Servicios de comidas y bebidas"),
+    ("58", "Edición"),
+    ("59", "Actividades cinematográficas, de vídeo, de programas de TV y grabación musical"),
+    ("60", "Actividades de programación y emisión de radio y televisión"),
+    ("61", "Telecomunicaciones"),
+    ("62", "Programación, consultoría y otras actividades relacionadas con la informática"),
+    ("63", "Servicios de información"),
+    ("64", "Servicios financieros, excepto seguros y fondos de pensiones"),
+    ("65", "Seguros, reaseguros y fondos de pensiones, excepto Seguridad Social"),
+    ("66", "Actividades auxiliares a los servicios financieros y a los seguros"),
+    ("68", "Actividades inmobiliarias"),
+    ("69", "Actividades jurídicas y de contabilidad"),
+    ("70", "Actividades de las sedes centrales; consultoría de gestión empresarial"),
+    ("71", "Servicios técnicos de arquitectura e ingeniería; ensayos y análisis"),
+    ("72", "Investigación y desarrollo"),
+    ("73", "Publicidad y estudios de mercado"),
+    ("74", "Otras actividades profesionales, científicas y técnicas"),
+    ("75", "Actividades veterinarias"),
+    ("77", "Actividades de alquiler"),
+    ("78", "Actividades relacionadas con el empleo"),
+    ("79", "Agencias de viajes, operadores turísticos y reservas"),
+    ("80", "Actividades de seguridad e investigación"),
+    ("81", "Servicios a edificios y actividades de jardinería"),
+    ("82", "Actividades administrativas de oficina y otras auxiliares a empresas"),
+    ("84", "Administración Pública y defensa; Seguridad Social obligatoria"),
+    ("85", "Educación"),
+    ("86", "Actividades sanitarias"),
+    ("87", "Asistencia en establecimientos residenciales"),
+    ("88", "Actividades de servicios sociales sin alojamiento"),
+    ("90", "Actividades de creación, artísticas y espectáculos"),
+    ("91", "Bibliotecas, archivos, museos y otras actividades culturales"),
+    ("92", "Actividades de juegos de azar y apuestas"),
+    ("93", "Actividades deportivas, recreativas y de entretenimiento"),
+    ("94", "Actividades asociativas"),
+    ("95", "Reparación de ordenadores, efectos personales y artículos de uso doméstico"),
+    ("96", "Otros servicios personales"),
+    ("97", "Actividades de los hogares como empleadores de personal doméstico"),
+    ("98", "Actividades de los hogares como productores de bienes y servicios para uso propio"),
+    ("99", "Actividades de organizaciones y organismos extraterritoriales"),
+]
+CNAE_LISTA = [f"{codigo} - {desc}" for codigo, desc in CNAE_DIVISIONES]
+
+
 @app.route("/clientes/plantilla")
 @login_requerido
 def descargar_plantilla():
@@ -385,9 +510,54 @@ def descargar_plantilla():
     headers = ["CIF/NIF", "Nombre", "CNAE", "Comunidad Autonoma", "Provincia",
                "Forma juridica", "Fecha de alta", "Gestor asignado"]
     ws.append(headers)
-    ws.append(["B00000000", "Empresa Ejemplo SL", "6920", "Madrid", "Madrid", "SL", "2019-03-01", "Ana Garcia"])
+    ws.append(["B00000000", "Empresa Ejemplo SL", "62 - Programación, consultoría y otras actividades relacionadas con la informática",
+                "Madrid", "Madrid", "SL", "2019-03-01", "Ana Garcia"])
     for i, h in enumerate(headers, start=1):
         ws.column_dimensions[get_column_letter(i)].width = 20
+    ws.column_dimensions["C"].width = 55  # CNAE: cabe "codigo - descripcion" entero
+
+    # Hoja auxiliar oculta con las listas cerradas -- los desplegables de la
+    # hoja "Cartera" apuntan aqui en vez de llevar la lista incrustada, para
+    # no toparse con el limite de ~255 caracteres de una lista en linea.
+    ws_listas = wb.create_sheet("Listas")
+    ws_listas["A1"] = "Comunidad Autonoma"
+    ws_listas["B1"] = "Forma juridica"
+    ws_listas["C1"] = "CNAE"
+    for i, v in enumerate(CCAA_LISTA, start=2):
+        ws_listas.cell(row=i, column=1, value=v)
+    for i, v in enumerate(FORMA_JURIDICA_LISTA, start=2):
+        ws_listas.cell(row=i, column=2, value=v)
+    for i, v in enumerate(CNAE_LISTA, start=2):
+        ws_listas.cell(row=i, column=3, value=v)
+    ws_listas.sheet_state = "hidden"
+
+    n_filas = 1000  # margen de sobra para cualquier cartera real
+    dv_ccaa = DataValidation(type="list", formula1=f"Listas!$A$2:$A${len(CCAA_LISTA)+1}",
+                              allow_blank=True, showErrorMessage=True, errorStyle="stop",
+                              errorTitle="Comunidad no reconocida",
+                              error="Elige una comunidad autónoma de la lista desplegable.",
+                              showInputMessage=True, promptTitle="Comunidad autónoma",
+                              prompt="Haz clic en la flecha y elige de la lista.")
+    dv_fj = DataValidation(type="list", formula1=f"Listas!$B$2:$B${len(FORMA_JURIDICA_LISTA)+1}",
+                             allow_blank=True, showErrorMessage=True, errorStyle="stop",
+                             errorTitle="Forma jurídica no reconocida",
+                             error="Elige una forma jurídica de la lista desplegable.",
+                             showInputMessage=True, promptTitle="Forma jurídica",
+                             prompt="Haz clic en la flecha y elige de la lista.")
+    dv_cnae = DataValidation(type="list", formula1=f"Listas!$C$2:$C${len(CNAE_LISTA)+1}",
+                               allow_blank=True, showErrorMessage=True, errorStyle="stop",
+                               errorTitle="Sector no reconocido",
+                               error="Elige el sector de la lista desplegable (empieza a escribir para buscar).",
+                               showInputMessage=True, promptTitle="Sector de actividad (CNAE)",
+                               prompt="Haz clic en la flecha y elige el sector. Con el desplegable abierto, "
+                                      "escribir letras salta a la primera coincidencia.")
+    ws.add_data_validation(dv_ccaa)
+    ws.add_data_validation(dv_fj)
+    ws.add_data_validation(dv_cnae)
+    dv_ccaa.add(f"D2:D{n_filas}")
+    dv_fj.add(f"F2:F{n_filas}")
+    dv_cnae.add(f"C2:C{n_filas}")
+
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
