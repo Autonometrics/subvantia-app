@@ -604,7 +604,14 @@ def descargar_plantilla():
         ws_listas.cell(row=i, column=3, value=v)
     ws_listas.sheet_state = "hidden"
 
-    n_filas = 1000  # margen de sobra para cualquier cartera real
+    # 300 filas es de sobra para una cartera real de una gestoria pequena o
+    # mediana (el publico objetivo de Subvantia). Se reduce desde 1000 porque
+    # cada fila con validacion se expande a nivel interno en openpyxl, y en
+    # el plan gratuito de Render (CPU/memoria muy limitadas) generar la hoja
+    # con 3 rangos de 1000 filas cada uno provocaba fallos intermitentes
+    # (503) que no se reproducian en local. Menos filas = menos trabajo por
+    # peticion, sin perder margen real de uso.
+    n_filas = 300
     dv_ccaa = DataValidation(type="list", formula1=f"Listas!$A$2:$A${len(CCAA_LISTA)+1}",
                               allow_blank=True, showErrorMessage=True, errorStyle="stop",
                               errorTitle="Comunidad no reconocida",
