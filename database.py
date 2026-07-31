@@ -397,6 +397,32 @@ def _seed_convocatorias(conn):
                 d[campo] = v.strftime("%Y-%m-%d")
         rows.append(tuple(d.get(h) for h in headers))
 
+    # El fichero de siembra es la fuente de verdad COMPLETA de convocatorias:
+    # asi es como se ha gestionado este proyecto desde el principio (anadir,
+    # corregir o retirar una convocatoria = editar este Excel y redesplegar).
+    # El upsert de mas abajo da de alta o actualiza filas por id_convocatoria,
+    # pero NUNCA borra -- si una convocatoria se quita de este fichero (p.ej.
+    # por estar cerrada y obsoleta), sin este paso seguiria viva para siempre
+    # en la base de datos real. Por eso, antes de sembrar, se eliminan de la
+    # base las convocatorias que ya no aparecen en el fichero (y en cascada
+    # sus matches/expedientes asociados, para no violar las claves foraneas).
+    id_col_idx = headers.index("id_convocatoria")
+    ids_seed = {r[id_col_idx] for r in rows}
+    ids_actuales = {
+        f["id_convocatoria"] for f in conn.execute("SELECT id_convocatoria FROM convocatorias").fetchall()
+    }
+    ids_a_borrar = ids_actuales - ids_seed
+    for id_conv in ids_a_borrar:
+        conn.execute(
+            "DELETE FROM expedientes WHERE match_id IN "
+            "(SELECT id FROM matches WHERE id_convocatoria = ?)",
+            (id_conv,),
+        )
+        conn.execute("DELETE FROM matches WHERE id_convocatoria = ?", (id_conv,))
+        conn.execute("DELETE FROM convocatorias WHERE id_convocatoria = ?", (id_conv,))
+    if ids_a_borrar:
+        conn.commit()
+
     if USANDO_POSTGRES:
         # Postgres no entiende "INSERT OR REPLACE"; el equivalente es
         # ON CONFLICT ... DO UPDATE sobre la clave primaria id_convocatoria.
@@ -410,6 +436,9 @@ def _seed_convocatorias(conn):
 
     conn.executemany(sql, rows)
     conn.commit()
+    if ids_a_borrar:
+        print(f"Eliminadas {len(ids_a_borrar)} convocatorias que ya no estan en el fichero de siembra: "
+              f"{', '.join(sorted(ids_a_borrar))}")
     print(f"Sembradas {len(rows)} convocatorias desde {os.path.basename(CONVOCATORIAS_SEED_XLSX)}")
 
 

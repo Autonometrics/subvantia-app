@@ -139,12 +139,9 @@ SECTOR_MAP = {
     # no reconoce. Sin esta entrada, caian en "no_evaluable" -> cnae_ok=False
     # SIEMPRE -> con exclusion dura se habrian quedado sin ningun match para
     # ningun cliente, aunque la convocatoria fuera legitima para su sector.
-    "CONV-004": None,  # "todos (linea 2: implantacion en pymes de cualquier sector...)" -> universal
     "CONV-008": _INDUSTRIA_10_33,  # "industrial" (reindustrializacion de pymes industriales)
     "CONV-013": {"62", "63", "72"},  # "62, 63, 72 (base tecnologica / I+D)"
-    "CONV-015": {"10", "11"},  # "10, 11 (industria agroalimentaria)"
     "CONV-016": {"55", "56"},  # "55, 56 (alojamiento y actividades turisticas)"
-    "CONV-017": {"55", "56", "79", "93"},  # alojamiento, turismo activo, intermediacion turistica
     "CONV-020": None,  # sector "no detallado en fuente oficial, pendiente de confirmar" -> universal (ver aviso ya existente en verificado_manualmente)
     "CONV-021": {str(n).zfill(2) for n in range(10, 33)},  # "industria (CNAE seccion C, 10-32)"
     "CONV-025": None,  # "todos (proyecto validado como innovador)"
@@ -152,7 +149,11 @@ SECTOR_MAP = {
     "CONV-037": None,  # "todos (excluidos sectores del articulo 7 del Rgto FEDER)" -- exclusion no detallada por CNAE
     "CONV-038": {"58", "62", "63", "72"},  # "tecnologico/digital"
     "CONV-039": {"58", "62", "63", "72"},  # "tecnologico/digital"
+    "CONV-048": {"58", "62", "63", "72"},  # "tecnologico/digital" (2a ventana de CONV-039, mismos requisitos)
 }
+# CONV-004, CONV-015 y CONV-017 se retiraron de aqui: sus convocatorias
+# (2025, 2025 y 2024 respectivamente) se eliminaron de la base en la revision
+# del 2026-07-31 por estar cerradas y fuera de vigencia.
 
 
 def _hoy():
