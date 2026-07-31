@@ -647,12 +647,41 @@ def descargar_plantilla():
 
 # ------------------------------------------------------------ convocatorias
 
+VALOR_FILTRO_NACIONAL_UE = "NACIONAL_UE"
+
+
 @app.route("/convocatorias")
 @login_requerido
 def convocatorias():
     conn = get_conn()
     filas = conn.execute("SELECT * FROM convocatorias ORDER BY estado_convocatoria, fecha_cierre").fetchall()
-    return render_template("convocatorias.html", convocatorias=filas)
+
+    # El filtro se resuelve en Python (no en SQL) reutilizando exactamente la
+    # misma normalizacion que ya usa el motor de cruce (matching.py) para
+    # decidir si una convocatoria es "de todas partes" o de una CCAA concreta.
+    # Asi el filtro nunca se desincroniza de la logica real del cruce: si
+    # matching.py considera que una convocatoria aplica a "Castilla y Leon"
+    # aunque este escrita "castilla y leon" sin tildes, el filtro tambien la
+    # encuentra.
+    ccaa_filtro = request.args.get("ccaa", "")
+    if ccaa_filtro == VALOR_FILTRO_NACIONAL_UE:
+        filas = [
+            c for c in filas
+            if matching._normalizar_texto(c["comunidad_autonoma"]) in ("todas", "")
+        ]
+    elif ccaa_filtro:
+        filas = [
+            c for c in filas
+            if matching._canonico_ccaa(c["comunidad_autonoma"]) == matching._canonico_ccaa(ccaa_filtro)
+        ]
+
+    return render_template(
+        "convocatorias.html",
+        convocatorias=filas,
+        ccaa_filtro=ccaa_filtro,
+        ccaa_lista=CCAA_LISTA,
+        valor_nacional_ue=VALOR_FILTRO_NACIONAL_UE,
+    )
 
 
 CAMPOS_CONVOCATORIA = [
