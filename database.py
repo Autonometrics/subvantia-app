@@ -24,6 +24,11 @@ import os
 import datetime as dt
 from werkzeug.security import generate_password_hash
 
+try:
+    import fcntl  # solo existe en Unix (Render); en Windows se usa como no-op mas abajo
+except ImportError:
+    fcntl = None
+
 DATABASE_URL = os.environ.get("DATABASE_URL")
 USANDO_POSTGRES = bool(DATABASE_URL)
 
@@ -300,9 +305,61 @@ def get_db():
     return conn
 
 
+import contextlib
+
+
+@contextlib.contextmanager
+def _bloqueo_arranque(conn):
+    """Con --workers > 1, gunicorn arranca varios procesos a la vez y CADA
+    UNO importa app.py y llama a init_db() de forma independiente. Sin este
+    bloqueo, dos procesos pueden ejecutar a la vez el "si la tabla esta vacia,
+    siembra" de _seed_usuarios/_seed_demo_clientes: ambos ven la tabla vacia,
+    ambos intentan insertar las mismas filas, y el segundo revienta con un
+    error de clave duplicada (UNIQUE/PRIMARY KEY) -- ese worker no arranca.
+    Esto se reprodujo de verdad al probar el servidor con 2 workers en local.
+
+    La solucion estandar es un lock de arranque: el primer proceso que llega
+    se queda con el bloqueo y siembra tranquilo; los demas esperan a que
+    termine y luego arrancan ya sobre datos consistentes (sin volver a
+    sembrar nada, porque para entonces las tablas ya no estan vacias).
+
+    En Postgres se usa un advisory lock (bloqueo a nivel de sesion, liberado
+    automaticamente si la conexion se cae). En SQLite (solo desarrollo local)
+    se usa un fichero de bloqueo con flock; si fcntl no esta disponible
+    (Windows) simplemente no se bloquea -- en local casi siempre hay un solo
+    proceso, así que el riesgo real es minimo."""
+    if USANDO_POSTGRES:
+        cur = conn._conn.cursor()
+        cur.execute("SELECT pg_advisory_lock(727270001)")
+        cur.close()
+        try:
+            yield
+        finally:
+            cur = conn._conn.cursor()
+            cur.execute("SELECT pg_advisory_unlock(727270001)")
+            cur.close()
+    elif fcntl is not None:
+        lock_path = DB_PATH + ".initlock"
+        fh = open(lock_path, "w")
+        try:
+            fcntl.flock(fh, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+            fh.close()
+    else:
+        yield
+
+
 def init_db(seed_demo_data=True):
     fresh = (not USANDO_POSTGRES) and (not os.path.exists(DB_PATH))
     conn = get_db()
+    with _bloqueo_arranque(conn):
+        _init_db_con_bloqueo(conn, seed_demo_data)
+    return fresh
+
+
+def _init_db_con_bloqueo(conn, seed_demo_data):
     conn.executescript(SCHEMA_POSTGRES if USANDO_POSTGRES else SCHEMA_SQLITE)
     conn.commit()
     if not USANDO_POSTGRES:
@@ -340,7 +397,6 @@ def init_db(seed_demo_data=True):
             _calcular_matches_iniciales(conn)
 
     conn.close()
-    return fresh
 
 
 def _migrar_columna_rol(conn):
@@ -443,9 +499,20 @@ def _seed_convocatorias(conn):
 
 
 def _seed_usuarios(conn):
+    # INSERT ... "ignora si ya existe" (por email) en vez de un INSERT liso:
+    # es una segunda red de seguridad ademas del advisory lock de mas arriba
+    # -- aunque dos procesos entraran aqui a la vez, ninguno revienta con un
+    # error de clave duplicada, simplemente el segundo no hace nada.
+    insertar = (
+        "INSERT INTO usuarios (email, password_hash, nombre, gestoria, rol, creado_en) "
+        "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (email) DO NOTHING"
+        if USANDO_POSTGRES else
+        "INSERT OR IGNORE INTO usuarios (email, password_hash, nombre, gestoria, rol, creado_en) "
+        "VALUES (?, ?, ?, ?, ?, ?)"
+    )
     ahora = dt.datetime.now().isoformat()
     conn.execute(
-        "INSERT INTO usuarios (email, password_hash, nombre, gestoria, rol, creado_en) VALUES (?, ?, ?, ?, ?, ?)",
+        insertar,
         (
             "demo@subvantia.test",
             generate_password_hash("subvantia2026"),
@@ -456,7 +523,7 @@ def _seed_usuarios(conn):
         ),
     )
     conn.execute(
-        "INSERT INTO usuarios (email, password_hash, nombre, gestoria, rol, creado_en) VALUES (?, ?, ?, ?, ?, ?)",
+        insertar,
         (
             "admin@subvantia.test",
             generate_password_hash("subvantia2026admin"),
