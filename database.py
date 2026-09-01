@@ -354,8 +354,16 @@ def _bloqueo_arranque(conn):
 def init_db(seed_demo_data=True):
     fresh = (not USANDO_POSTGRES) and (not os.path.exists(DB_PATH))
     conn = get_db()
-    with _bloqueo_arranque(conn):
-        _init_db_con_bloqueo(conn, seed_demo_data)
+    try:
+        with _bloqueo_arranque(conn):
+            _init_db_con_bloqueo(conn, seed_demo_data)
+    finally:
+        # La conexion se cierra DESPUES de salir del "with": el bloqueo (y su
+        # liberacion, en el finally de _bloqueo_arranque) tiene que hacerse
+        # con la conexion todavia abierta. Cerrarla antes revienta con
+        # "connection already closed" al intentar liberar el advisory lock
+        # -- error real visto en el primer despliegue de este cambio.
+        conn.close()
     return fresh
 
 
@@ -395,8 +403,6 @@ def _init_db_con_bloqueo(conn, seed_demo_data):
         if cur.fetchone()["n"] == 0:
             _seed_demo_clientes(conn)
             _calcular_matches_iniciales(conn)
-
-    conn.close()
 
 
 def _migrar_columna_rol(conn):
