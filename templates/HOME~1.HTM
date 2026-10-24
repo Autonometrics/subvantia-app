@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Subvantia — Descubre qué subvenciones corresponden a cada cliente de tu gestoría{% endblock %}
+{% block content %}
+<style>
+  .lp { max-width: 1000px; margin: 0 auto; }
+  .lp-hero { text-align: center; margin: 36px auto 44px; max-width: 760px; }
+  .lp-hero h1 { font-size: 34px; line-height: 1.2; color: var(--navy); margin: 14px 0 14px; }
+  .lp-hero p { font-size: 16px; color: var(--muted); line-height: 1.6; margin: 0 0 24px; }
+  .lp-cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .lp-cta .btn { padding: 13px 26px; font-size: 15px; }
+  .lp-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 0 0 48px; }
+  .lp-stat { background: var(--mint-bg); border-radius: 10px; padding: 18px; text-align: center; }
+  .lp-stat b { display: block; font-size: 30px; color: var(--navy); }
+  .lp-stat span { font-size: 13px; color: var(--muted); }
+  .lp h2.sec { font-size: 22px; color: var(--navy); text-align: center; margin: 0 0 22px; }
+  .lp-steps, .lp-bene { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 48px; }
+  .lp-step .num { width: 32px; height: 32px; border-radius: 50%; background: var(--teal); color: #fff; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+  .lp-step h3, .lp-bene h3 { margin: 0 0 6px; font-size: 15px; color: var(--navy); }
+  .lp-step p, .lp-bene p { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+  .lp-final { background: var(--navy); color: #fff; border-radius: 12px; padding: 34px 24px; text-align: center; margin-bottom: 40px; }
+  .lp-final h2 { color: #fff; margin: 0 0 8px; font-size: 22px; }
+  .lp-final p { color: #cfd8e3; margin: 0 0 20px; font-size: 14.5px; }
+  .lp-final .btn-outline { border-color: #fff; color: #fff; }
+  @media (max-width: 760px) { .lp-stats, .lp-steps, .lp-bene { grid-template-columns: 1fr; } .lp-hero h1 { font-size: 26px; } }
+</style>
+
+<div class="lp">
+  <div class="lp-hero">
+    <img src="{{ url_for('static', filename='logo_full.png') }}" class="hero-logo-full" alt="Subvantia">
+    <h1>Descubre qué subvenciones corresponden a cada cliente de tu gestoría</h1>
+    <p>Subvantia cruza automáticamente tu cartera de clientes con las convocatorias públicas vigentes (estatales, europeas y de las 19 comunidades autónomas). Tú dejas de buscar ayudas; tus clientes dejan de perder dinero que les correspondía.</p>
+    <div class="lp-cta">
+      <a class="btn btn-primary" href="{{ url_for('entrar_demo') }}">Ver demo en 1 clic</a>
+      <a class="btn btn-outline" href="mailto:{{ contacto_email }}?subject=Quiero%20acceso%20a%20Subvantia">Solicitar acceso</a>
+    </div>
+    <p style="font-size:12.5px; margin:14px 0 0;">Sin registro para la demo · datos de ejemplo · ya tienes cuenta: <a href="{{ url_for('login') }}" style="color:var(--navy); text-decoration:underline;">acceder</a></p>
+  </div>
+
+  <div class="lp-stats">
+    <div class="lp-stat"><b>{{ total_convocatorias }}</b><span>convocatorias en la base, con enlace a la fuente oficial</span></div>
+    <div class="lp-stat"><b>{{ convocatorias_abiertas }}</b><span>abiertas hoy para solicitar</span></div>
+    <div class="lp-stat"><b>19</b><span>comunidades autónomas + ayudas nacionales y europeas</span></div>
+  </div>
+
+  <h2 class="sec">Cómo funciona</h2>
+  <div class="lp-steps">
+    <div class="card lp-step"><div class="num">1</div><h3>Sube tu cartera</h3><p>Importa tus clientes con los datos que ya tienes: comunidad autónoma, CNAE, forma jurídica, antigüedad y plantilla.</p></div>
+    <div class="card lp-step"><div class="num">2</div><h3>Subvantia cruza los datos</h3><p>Comprobamos los requisitos de cada convocatoria contra cada cliente y te mostramos solo las ayudas a las que de verdad pueden optar, con la cuantía en juego.</p></div>
+    <div class="card lp-step"><div class="num">3</div><h3>Gestiona el expediente</h3><p>Avisa al cliente con un email listo para enviar, abre el expediente y sigue su estado hasta la concesión.</p></div>
+  </div>
+
+  <h2 class="sec">Por qué las gestorías lo usan</h2>
+  <div class="lp-bene">
+    <div class="card"><h3>Base siempre al día</h3><p>Revisamos cada convocatoria en fuente oficial: estado, plazos, cuantías y enlace. Tú no tienes que seguir boletines.</p></div>
+    <div class="card"><h3>Nuevo servicio para tus clientes</h3><p>Convierte las subvenciones en un servicio de valor añadido que te diferencia y genera nuevos honorarios de tramitación.</p></div>
+    <div class="card"><h3>Precio plano</h3><p>Una cuota mensual fija, sin créditos ni sorpresas, pensada para gestorías pequeñas y medianas.</p></div>
+  </div>
+
+  <div class="lp-final">
+    <h2>Míralo con tus propios ojos</h2>
+    <p>Entra a la demo y revisa la base de convocatorias y un cruce de ejemplo en menos de dos minutos.</p>
+    <div class="lp-cta">
+      <a class="btn btn-primary" href="{{ url_for('entrar_demo') }}">Ver demo</a>
+      <a class="btn btn-outline" href="mailto:{{ contacto_email }}?subject=Quiero%20acceso%20a%20Subvantia">Solicitar acceso</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
