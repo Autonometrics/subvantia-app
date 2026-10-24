@@ -148,6 +148,7 @@ SECTOR_MAP = {
     "CONV-029": None,  # "todos (proyectos alineados con la estrategia S3 regional)"
     "CONV-037": None,  # "todos (excluidos sectores del articulo 7 del Rgto FEDER)" -- exclusion no detallada por CNAE
     "CONV-038": {"58", "62", "63", "72"},  # "tecnologico/digital"
+    "CONV-049": None,  # 7a convocatoria Ceuta (mismo programa que CONV-037)
     "CONV-039": {"58", "62", "63", "72"},  # "tecnologico/digital"
     "CONV-048": {"58", "62", "63", "72"},  # "tecnologico/digital" (2a ventana de CONV-039, mismos requisitos)
 }

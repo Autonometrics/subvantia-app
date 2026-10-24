@@ -185,7 +185,37 @@ def home():
     # cuenta, en vez de un formulario de login sin contexto.
     if session.get("usuario_id"):
         return redirect(url_for("dashboard"))
-    return render_template("home.html")
+    conn = get_conn()
+    stats = conn.execute(
+        "SELECT COUNT(*) AS total, "
+        "SUM(CASE WHEN estado_convocatoria = 'abierta' THEN 1 ELSE 0 END) AS abiertas "
+        "FROM convocatorias"
+    ).fetchone()
+    return render_template(
+        "home.html",
+        total_convocatorias=stats["total"] or 0,
+        convocatorias_abiertas=stats["abiertas"] or 0,
+        contacto_email=os.environ.get("SUBVANTIA_CONTACTO", "pablomendez1993@gmail.com"),
+    )
+
+
+@app.route("/demo")
+def entrar_demo():
+    """Entrada de un clic a la cuenta demo publica (solo lectura), para que una
+    gestoria pueda ver el producto sin pedir acceso ni teclear credenciales."""
+    conn = get_conn()
+    usuario = conn.execute(
+        "SELECT * FROM usuarios WHERE email = ?", (EMAIL_CUENTA_DEMO,)
+    ).fetchone()
+    if not usuario:
+        flash("La demostración no está disponible ahora mismo.")
+        return redirect(url_for("login"))
+    session["usuario_id"] = usuario["id"]
+    session["usuario_nombre"] = usuario["nombre"]
+    session["usuario_gestoria"] = usuario["gestoria"]
+    session["usuario_rol"] = usuario["rol"] or "gestoria"
+    session["usuario_email"] = usuario["email"]
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/dashboard")
